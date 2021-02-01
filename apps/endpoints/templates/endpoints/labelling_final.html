@@ -12,7 +12,7 @@
     <body>
         <div class="page-header">
             <a href="{% url 'home' %}" class="top-menu"><span class="glyphicon glyphicon-share-alt"></span> Retour à l'accueil</a>
-            <h1><a href="/home">Labellisation des données de caisse</a></h1>
+            <h1><a href="{% url 'home' %}">Labellisation des données de caisse</a></h1>
         </div>
 
         <div class="content container">
@@ -31,7 +31,7 @@
                 <tbody>
                     {% for row in resbytable %}
                     <tr>
-                        <td>{{ row.tableName }}</td>
+                        <td>{{ row.table_name }}</td>
                         <td>{{ row.labeledatleastOnce }}</td>
                         <td>{{ row.labeled }}</td>
                         <td>{{ row.total }}</td>
@@ -51,7 +51,7 @@
                 </tr>
                 {% for row in resbygroup %}
                 <tr>
-                    <td>{{ row.tableName }}</td>
+                    <td>{{ row.table_name }}</td>
                     <td>{{ row.categ }}</td>
                     <td>{{ row.labeledatleastOnce }}</td>
                     <td>{{ row.labeled }}</td>

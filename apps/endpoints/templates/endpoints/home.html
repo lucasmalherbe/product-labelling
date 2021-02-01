@@ -10,8 +10,7 @@
     </head>
     <body>
         <div class="page-header">
-            <a href="{% url 'home' %}" class="top-menu"><span class="glyphicon glyphicon-share-alt"></span> Retour à l'accueil</a>
-            <h1><a href="/labelling/summary">Labellisation des données de caisse</a></h1>
+            <h1><a href="{% url 'home' %}">Labellisation des données de caisse</a></h1>
         </div>
 
         <div class="content container">
@@ -21,12 +20,11 @@
                         <form method="POST" class="post-form">{% csrf_token %}
                             {{ form.as_p }}
                             <div class="row">
-                                <p class="sep"><button type="submit" class="save btn btn-default" name="labelling" value=None>Commencer la labellisation à partir d'un fichier</button></p>
+                                <p class="sep"><button type="submit" class="save btn btn-default" name="labelling" value=None style="margin: 0.5em; float: left">Commencer la labellisation à partir d'un fichier</button></p>
                             </div>
                             <div class="row">
-                                <p class="sep"><button type="submit" class="save btn btn-default" name="labellingbyhand" value=None>Commencer la labellisation manuelle (cad en fournissant le label à labelliser)</button></p>
+                                <p class="sep"><button type="submit" class="save btn btn-default" name="labellingbyhand" value=None style="margin: 0.5em; float: left">Commencer la labellisation manuelle (en fournissant le libellé)</button></p>
                             </div>
-
                         </form>
                 </div>
             </div>

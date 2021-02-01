@@ -10,8 +10,10 @@
     </head>
     <body>
         <div class="page-header">
-            <a href="{% url 'home' %}" class="top-menu"><span class="glyphicon glyphicon-share-alt"></span> Retour à l'accueil</a>
-            <h1>Labellisation des données de caisse</h1>
+          <div class="top-menu"> <form method="POST" class="post-form">{% csrf_token %}
+              <p class="sep"><button class="save btn btn-danger" name="stop" value=None>Arrêter de labelliser</button></p>
+          </form></div>
+          <h1>Labellisation des données de caisse</h1>
         </div>
 
         <div class="content container" id="divPrediction">
@@ -21,22 +23,20 @@
                     <p><strong>Preprocessing</strong> : <font size="+1">{{ label_in_preprocessed }}</font></p>
 
                     {% if ean %}
-                        <p><strong>EAN</strong> : {{ ean }} <a href = "https://www.google.com/search?q={{ ean }}" target="_blank" style="padding:0 0 0 20px;">Rechercher cet EAN sur Google</a> </p>
+                        <p><strong>EAN</strong> : {{ ean }} <br> <a href = "https://www.google.com/search?q={{ ean }}" target="_blank";">Rechercher cet EAN sur Google</a> </p>
                     {% endif %}
 
-                    <table border="1" width="600">
+                    <table style="border:1px solid black;" width="600">
                         <tr>
-                        <td align="center"><B>Prediction</B></td>
-                        <td align="center"><B>Probabilité</B></td>
+                        <td align="center"><B>Catégorie</B></td>
                         </tr>
 
                         <form id="formPrediction" method="POST" class="post-form">{% csrf_token %}
                             {% for pred in predictions %}
                                 <tr>
-                                <td><input type="radio" name="label_out" id="label_out{{ pred.prediction }}" value="{{ pred.prediction }}"/>
+                                <td><input type="radio" name="label_out" id="label_out{{ pred.prediction }}" value="{{ pred.prediction|slice:":4" }}"/>
                                     <label for="label_out{{ pred.prediction }}">{{ pred.prediction }}</label>
                                 </td>
-                                <td>{{ pred.probability }}</td>
                                 </tr>
                             {% endfor %}
 
@@ -46,11 +46,10 @@
                                     <select id="suggestion" name="getselection" class="scrolling">
                                         <option value="" class="italique" selected disabled hidden>Choisir le libellé dans la nomenclature</option>
                                         {% for other in nomenclature %}
-                                            <option value="{{ other }}">{{ other }}</option>
+                                            <option value="{{ other|slice:":4" }}">{{ other }}</option>
                                         {% endfor %}
                                     </select>
                                 </td>
-                                <td></td>
                                 </tr>
                             {% endif %}
 
@@ -69,7 +68,7 @@
                     </div>
                     <div class="row">
                         <form method="POST" class="post-form">{% csrf_token %}
-                            <p class="sep"><button class="save btn btn-default" name="stop" value=None>Arrêter de labelliser</button></p>
+                            <p class="sep"><button class="save btn btn-default" name="impossible" value=None>Impossible à déterminer</button></p>
                         </form>
                     </div>
                 </div>

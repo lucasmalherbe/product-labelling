@@ -21,17 +21,21 @@
 
                         <table border="1" width="600">
                             <tr>
-                            <td align="center"><B>Prediction</B></td>
-                            <td align="center"><B>Probabilité</B></td>
+                            <td align="center"><B>Catégorie</B></td>
+                            <td align="center"><B>Score /100</B></td>
                             </tr>
 
                             <form id="formPrediction" method="POST" class="post-form">{% csrf_token %}
                             {% for pred in predictions %}
                                 <tr>
-                                <td><input type="radio" name="label_out" id="label_out{{ pred.prediction }}" value="{{ pred.prediction }}" />
+                                <td><input type="radio" name="label_out" id="label_out{{ pred.prediction }}" value="{{ pred.prediction|slice:":4" }}" />
                                     <label for="label_out{{ pred.prediction }}">{{ pred.prediction }}</label>
                                 </td>
-                                <td>{{ pred.probability }}</td>
+                                <td>{% if pred.probability < 0.2 %}
+                                  < 20
+                                  {% elif pred.probability >= 0.2 %}
+                                  {% widthratio pred.probability 1 100 %}
+                                  {% endif %}</td>
                                 </tr>
                             {% endfor %}
 
@@ -41,7 +45,7 @@
                                     <select id="getselection" name="getselection" class="scrolling">
                                         <option value="" class="italique" selected disabled hidden>Choisir le libellé dans la nomenclature</option>
                                         {% for other in nomenclature %}
-                                            <option value="{{ other }}">{{ other }}</option>
+                                            <option value="{{ other|slice:":4" }}">{{ other }}</option>
                                         {% endfor %}
                                     </select>
                                 </td>
@@ -53,7 +57,7 @@
                             </form>
                         </table>
                         {% if warning %}
-                            <h5 style="color:rgb(255,0,0);"><b><u>Warning</u></b> : Probas faibles pour les libellés prédits par le modèle (< 0.7)</h5>
+                            <h5 style="color:rgb(255,0,0);"><b><u>Attention</u></b> : scores faibles pour les libellés prédits par le modèle (< 70)</h5>
                         {% endif %}
                 </div>
             </div>

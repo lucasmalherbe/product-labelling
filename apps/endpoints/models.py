@@ -81,6 +81,7 @@ class labellingDone(models.Model):
     probability = models.FloatField(blank=True, null=True)
     published_date = models.DateTimeField(blank=True, null=True)
     unknown = models.BooleanField(blank=True, null=True)
+    impossible = models.BooleanField(blank=True, null=True)
 
     def __str__(self):
         """String for representing the Model object."""

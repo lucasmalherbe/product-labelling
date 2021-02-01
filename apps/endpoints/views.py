@@ -1,4 +1,4 @@
-﻿from rest_framework import viewsets
+from rest_framework import viewsets
 from rest_framework import mixins
 from rest_framework import views, status
 from rest_framework.response import Response
@@ -26,6 +26,7 @@ from numpy.random import rand
 import pandas as pd
 
 nb_labellingtodo_bylabel=2
+nomenclature_filtree = ['A01Z', 'A02Z', 'A03Z', 'C10A', 'C10B', 'C10C', 'C10D', 'C10E', 'C10F', 'C10G', 'C10H', 'C10K', 'C11Z', 'C12Z', 'C13Z', 'C14Z', 'C15Z', 'C16Z', 'C17B', 'C18Z', 'C19Z', 'C20A', 'C20B', 'C20C', 'C21Z', 'C22A', 'C22B', 'C23A', 'C23B', 'C25E', 'C26B', 'C26C', 'C26D', 'C26E', 'C26G', 'C27A', 'C27B', 'C28A', 'C29B', 'C31Z', 'C32A', 'C32B', 'C32C', 'J58Z', 'J59Z', 'J61Z', 'K65Z', 'N77Z', 'N79Z', 'R90Z', 'R91Z', 'R93Z', 'S95Z', 'S96Z']
 
 #########################################
 # HOME
@@ -76,14 +77,19 @@ def labellingbyhand_prediction(request):
         warning=False
     fichier_nomenclature=os.path.exists('nomenclature.csv')
     if fichier_nomenclature:
-        nomenclature=pd.read_csv('nomenclature.csv', header=None)[0]
-        nomenclature=[x.replace('__label__','').replace('_',' ') for x in nomenclature]
+        nomenclature=pd.read_csv('nomenclature.csv', sep = ";")
+        #trim spaces
+        nomenclature = nomenclature.apply(lambda x: x.str.strip())
+        #filter out impossible codes
+        nomenclature = nomenclature.loc[nomenclature["code"].isin(nomenclature_filtree)]
+        #transform into a list
+        nomenclature = (nomenclature["code"] + " - " + nomenclature["intitule"]).tolist()
     else:
         nomenclature=list()
 
     if request.method == "POST":
         form = labellingByHandForm()
-        post = form.save(commit=False)    
+        post = form.save(commit=False)
         post.author=author
         post.label_in=label_in
         post.label_out=request.POST['label_out']
@@ -104,7 +110,8 @@ def labellingbyhand_prediction(request):
 def labelling_tableChoice(request, nb_labellingtodo_bylabel=nb_labellingtodo_bylabel):
     author=request.session['author']
     idDone=list(labellingDone.objects.filter(author=author).values_list('id_label', flat=True))
-    tables=labellingToDo.objects.exclude(id__in=idDone).annotate(nb=F('labeled')+F('ongoing')).filter(nb__lt=nb_labellingtodo_bylabel).values_list('table_name', flat=True).distinct()
+    idImpossible=labellingDone.objects.filter(impossible=True).values_list('id_label', flat=True)
+    tables=labellingToDo.objects.exclude(id__in=idDone).exclude(id__in=list(idImpossible)).annotate(nb=F('labeled')+F('ongoing')).filter(nb__lt=nb_labellingtodo_bylabel).values_list('table_name', flat=True).distinct()
     if tables==list():
         return HttpResponseRedirect(reverse('labelling_final'))
     if request.method == "POST":
@@ -119,7 +126,8 @@ def labelling_groupChoice(request, nb_labellingtodo_bylabel=nb_labellingtodo_byl
     author=request.session['author']
     tableselected=request.session['tableselected']
     idDone=list(labellingDone.objects.filter(author=author).values_list('id_label', flat=True))
-    groups=list(labellingToDo.objects.filter(table_name=tableselected).exclude(id__in=idDone).annotate(nb=F('labeled')+F('ongoing')).filter(nb__lt=nb_labellingtodo_bylabel).values_list('categ', flat=True).distinct())
+    idImpossible=labellingDone.objects.filter(impossible=True).values_list('id_label', flat=True)
+    groups=list(labellingToDo.objects.filter(table_name=tableselected).exclude(id__in=idDone).exclude(id__in=list(idImpossible)).annotate(nb=F('labeled')+F('ongoing')).filter(nb__lt=nb_labellingtodo_bylabel).values_list('categ', flat=True).distinct())
     if groups==list():
         return HttpResponseRedirect(reverse('labelling_final'))
     if request.method == "POST":
@@ -134,18 +142,19 @@ def labelling_prediction(request, nb_labellingtodo_bylabel=nb_labellingtodo_byla
     author=request.session['author']
     tableselected=request.session['tableselected']
     groupselected=request.session['groupselected']
-    
+
     idDone=labellingDone.objects.filter(author=author).values_list('id_label', flat=True)
-    idLabel=labellingToDo.objects.filter(table_name=tableselected).filter(categ=groupselected).exclude(id__in=list(idDone)).annotate(nb=F('labeled')+F('ongoing')).filter(nb__lt=nb_labellingtodo_bylabel).values_list('id', flat=True).first()
+    idImpossible=labellingDone.objects.filter(impossible=True).values_list('id_label', flat=True)
+    idLabel=labellingToDo.objects.filter(table_name=tableselected).filter(categ=groupselected).exclude(id__in=list(idDone)).exclude(id__in=list(idImpossible)).annotate(nb=F('labeled')+F('ongoing')).filter(nb__lt=nb_labellingtodo_bylabel).values_list('id', flat=True).first()
 
     idOnGoing=labellingOnGoing.objects.filter(author=author).filter(id_label__in=labellingToDo.objects.filter(table_name=tableselected).filter(categ=groupselected).values_list('id', flat=True)).values_list('id_label', flat=True).first()
     if idOnGoing:
         idLabel=idOnGoing
-        
+
     if idLabel==None:
         if 'idPostedLabel' in request.session :
             idPostedLabel=request.session['idPostedLabel']
-            nb_ongoing=labellingOnGoing.objects.filter(id_label=idPostedLabel).aggregate(Count('author', distinct=True))['author__count'] 
+            nb_ongoing=labellingOnGoing.objects.filter(id_label=idPostedLabel).aggregate(Count('author', distinct=True))['author__count']
             nb_labeled=labellingToDo.objects.filter(id=idPostedLabel).values('labeled').first()['labeled']
 
             if (nb_ongoing+nb_labeled)==nb_labellingtodo_bylabel:
@@ -156,7 +165,7 @@ def labelling_prediction(request, nb_labellingtodo_bylabel=nb_labellingtodo_byla
 
         if 'idPostedLabel' not in request.session :
             return HttpResponseRedirect(reverse('labelling_groupChoice'))
-    else :      
+    else :
         if idLabel not in labellingOnGoing.objects.filter(author=author).values_list('id_label', flat=True):
             entry = labellingOnGoing(id_label=idLabel,
                         author = author,
@@ -165,9 +174,9 @@ def labelling_prediction(request, nb_labellingtodo_bylabel=nb_labellingtodo_byla
             entry.save()
 
         entry = labellingToDo.objects.get(id=idLabel)
-        entry.ongoing = labellingOnGoing.objects.filter(id_label=idLabel).aggregate(Count('author', distinct=True))['author__count'] 
+        entry.ongoing = labellingOnGoing.objects.filter(id_label=idLabel).aggregate(Count('author', distinct=True))['author__count']
         entry.save()
-        
+
         label_in=str(labellingToDo.objects.filter(id=idLabel).values('label_in').first()['label_in'])
         my_alg = FasttextClassifier()
         label_in_preprocessed=my_alg.preprocessing({"label_in": str(label_in)})
@@ -178,8 +187,13 @@ def labelling_prediction(request, nb_labellingtodo_bylabel=nb_labellingtodo_byla
             warning=False
         fichier_nomenclature=os.path.exists('nomenclature.csv')
         if fichier_nomenclature:
-            nomenclature=pd.read_csv('nomenclature.csv', header=None)[0]
-            nomenclature=[x.replace('__label__','').replace('_',' ') for x in nomenclature]
+            nomenclature=pd.read_csv('nomenclature.csv', sep = ";")
+            #trim spaces
+            nomenclature = nomenclature.apply(lambda x: x.str.strip())
+            #filter out impossible codes
+            nomenclature = nomenclature.loc[nomenclature["code"].isin(nomenclature_filtree)]
+            #transform into a list
+            nomenclature = (nomenclature["code"] + " - " + nomenclature["intitule"]).tolist()
         else:
             nomenclature=list()
 
@@ -189,11 +203,11 @@ def labelling_prediction(request, nb_labellingtodo_bylabel=nb_labellingtodo_byla
         else:
             idPostedLabel=request.session['idPostedLabel']
         postedLabel=labellingToDo.objects.filter(id=idPostedLabel).values('label_in').first()['label_in']
-        
+
         labellingOnGoing.objects.filter(id_label=idPostedLabel).filter(author = author).delete()
 
         entry = labellingToDo.objects.get(id=idPostedLabel)
-        entry.ongoing = labellingOnGoing.objects.filter(id_label=idPostedLabel).aggregate(Count('author', distinct=True))['author__count'] 
+        entry.ongoing = labellingOnGoing.objects.filter(id_label=idPostedLabel).aggregate(Count('author', distinct=True))['author__count']
         entry.save()
 
         if 'label_out' in request.POST:
@@ -224,7 +238,7 @@ def labelling_prediction(request, nb_labellingtodo_bylabel=nb_labellingtodo_byla
                         published_date = timezone.now()
                     )
                 entry.save()
-                
+
             return HttpResponseRedirect(reverse('labelling_prediction'))
         if 'stop' in request.POST:
             return HttpResponseRedirect(reverse('labelling_groupChoice'))
@@ -243,6 +257,21 @@ def labelling_prediction(request, nb_labellingtodo_bylabel=nb_labellingtodo_byla
             else:
                 return HttpResponseRedirect(reverse('labelling_prediction'))
 
+        if 'impossible' in request.POST:
+            entry=labellingDone(id_label=idPostedLabel,
+                        label_in = postedLabel,
+                        author = author,
+                        categ=labellingToDo.objects.filter(id=idPostedLabel).values_list('categ', flat=True).first(),
+                        published_date = timezone.now(),
+                        impossible=True
+                    )
+            entry.save()
+
+            if idLabel==None:
+                return HttpResponseRedirect(reverse('labelling_groupChoice'))
+            else:
+                return HttpResponseRedirect(reverse('labelling_prediction'))
+
     if idLabel:
         request.session['idPostedLabel']=idLabel
         ean=labellingToDo.objects.filter(id=idLabel).values('ean').first()
@@ -250,26 +279,26 @@ def labelling_prediction(request, nb_labellingtodo_bylabel=nb_labellingtodo_byla
             ean=""
         else:
             ean=str(ean['ean'])
-    
+
     return render(request, 'endpoints/labelling_prediction.html', {'label_in': label_in, 'label_in_preprocessed':str(label_in_preprocessed), 'ean':ean,
             'predictions':prediction, 'nomenclature':nomenclature, 'fichier_nomenclature':fichier_nomenclature, 'warning':warning})
 
 def labelling_summary(request):
-    total=list(labellingToDo.objects.values('table_name').annotate(total=Count('table_name')))           
+    total=list(labellingToDo.objects.values('table_name').annotate(total=Count('table_name')))
     labeledAtLeastOnce=list(labellingToDo.objects.all().filter(labeled__gt=0).values('table_name').annotate(labeledatleastOnce=Count('categ')))
-    labeled=list(labellingToDo.objects.all().filter(labeled=nb_labellingtodo_bylabel).values('table_name').annotate(labeled=Count('categ'))) 
+    labeled=list(labellingToDo.objects.all().filter(labeled=nb_labellingtodo_bylabel).values('table_name').annotate(labeled=Count('categ')))
     total.extend(labeledAtLeastOnce)
     total.extend(labeled)
     resbytable=pd.DataFrame(total)
     resbytable=resbytable.groupby('table_name').max().fillna(0).astype(int).reset_index().sort_values(['labeled', 'labeledatleastOnce'], ascending=[False, False]).to_dict('records')
 
-    total=list(labellingToDo.objects.all().values('table_name','categ').annotate(total=Count('categ')))            
-    labeledAtLeastOnce=list(labellingToDo.objects.all().filter(labeled__gt=0).values('table_name','categ').annotate(labeledatleastOnce=Count('categ'))) 
-    labeled=list(labellingToDo.objects.all().filter(labeled=nb_labellingtodo_bylabel).values('table_name','categ').annotate(labeled=Count('categ'))) 
+    total=list(labellingToDo.objects.all().values('table_name','categ').annotate(total=Count('categ')))
+    labeledAtLeastOnce=list(labellingToDo.objects.all().filter(labeled__gt=0).values('table_name','categ').annotate(labeledatleastOnce=Count('categ')))
+    labeled=list(labellingToDo.objects.all().filter(labeled=nb_labellingtodo_bylabel).values('table_name','categ').annotate(labeled=Count('categ')))
     total.extend(labeledAtLeastOnce)
     total.extend(labeled)
     resbygroup=pd.DataFrame(total)
-    resbygroup=resbygroup.groupby(['table_name', 'categ']).max().fillna(0).astype(int).reset_index().sort_values(['labeled', 'labeledatleastOnce'], ascending=[False, False]).to_dict('records')  
+    resbygroup=resbygroup.groupby(['table_name', 'categ']).max().fillna(0).astype(int).reset_index().sort_values(['labeled', 'labeledatleastOnce'], ascending=[False, False]).to_dict('records')
 
     if request.method == "POST":
         return HttpResponseRedirect(reverse('home'))
@@ -278,22 +307,22 @@ def labelling_summary(request):
 
 def labelling_final(request):
     author=request.session['author']
-    
-    total=list(labellingToDo.objects.values('table_name').annotate(total=Count('table_name')))           
+
+    total=list(labellingToDo.objects.values('table_name').annotate(total=Count('table_name')))
     labeledAtLeastOnce=list(labellingToDo.objects.all().filter(labeled__gt=0).values('table_name').annotate(labeledatleastOnce=Count('categ')))
-    labeled=list(labellingToDo.objects.all().filter(labeled=nb_labellingtodo_bylabel).values('table_name').annotate(labeled=Count('categ'))) 
+    labeled=list(labellingToDo.objects.all().filter(labeled=nb_labellingtodo_bylabel).values('table_name').annotate(labeled=Count('categ')))
     total.extend(labeledAtLeastOnce)
     total.extend(labeled)
     resbytable=pd.DataFrame(total)
     resbytable=resbytable.groupby('table_name').max().fillna(0).astype(int).reset_index().sort_values(['labeled', 'labeledatleastOnce'], ascending=[False, False]).to_dict('records')
 
-    total=list(labellingToDo.objects.all().values('table_name','categ').annotate(total=Count('categ')))            
-    labeledAtLeastOnce=list(labellingToDo.objects.all().filter(labeled__gt=0).values('table_name','categ').annotate(labeledatleastOnce=Count('categ'))) 
-    labeled=list(labellingToDo.objects.all().filter(labeled=nb_labellingtodo_bylabel).values('table_name','categ').annotate(labeled=Count('categ'))) 
+    total=list(labellingToDo.objects.all().values('table_name','categ').annotate(total=Count('categ')))
+    labeledAtLeastOnce=list(labellingToDo.objects.all().filter(labeled__gt=0).values('table_name','categ').annotate(labeledatleastOnce=Count('categ')))
+    labeled=list(labellingToDo.objects.all().filter(labeled=nb_labellingtodo_bylabel).values('table_name','categ').annotate(labeled=Count('categ')))
     total.extend(labeledAtLeastOnce)
     total.extend(labeled)
     resbygroup=pd.DataFrame(total)
-    resbygroup=resbygroup.groupby(['table_name', 'categ']).max().fillna(0).astype(int).reset_index().sort_values(['labeled', 'labeledatleastOnce'], ascending=[False, False]).to_dict('records')  
+    resbygroup=resbygroup.groupby(['table_name', 'categ']).max().fillna(0).astype(int).reset_index().sort_values(['labeled', 'labeledatleastOnce'], ascending=[False, False]).to_dict('records')
 
     if request.method == "POST":
         if 'unknown' in request.POST:
